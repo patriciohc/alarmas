@@ -19,10 +19,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <pthread.h>
 #include <strophe.h>
-#include <wiringPi.h>
+#include <string.h>
+
+#include "sensores.h"
+
+#define NO_CLIENTES 1
+
+char *clientes[] = {
+	"cliente01@suchat.org"
+};
 
 xmpp_ctx_t *ctx;
 
@@ -38,10 +45,10 @@ int version_handler(xmpp_conn_t * const conn, xmpp_stanza_t * const stanza, void
 
 	query = xmpp_stanza_new(ctx);
 	xmpp_stanza_set_name(query, "query");
-    ns = xmpp_stanza_get_ns(xmpp_stanza_get_children(stanza));
-    if (ns) {
-        xmpp_stanza_set_ns(query, ns);
-    }
+	ns = xmpp_stanza_get_ns(xmpp_stanza_get_children(stanza));
+	if (ns) {
+		xmpp_stanza_set_ns(query, ns);
+    	}
 
 	name = xmpp_stanza_new(ctx);
 	xmpp_stanza_set_name(name, "name");
@@ -70,58 +77,24 @@ int version_handler(xmpp_conn_t * const conn, xmpp_stanza_t * const stanza, void
 int message_handler(xmpp_conn_t * const conn, xmpp_stanza_t * const stanza, void * const userdata)
 {
 	xmpp_stanza_t *body, *text;
-	char *intext; //*replytext;
+	char *intext;
 	xmpp_ctx_t *ctx = (xmpp_ctx_t*)userdata;
-	
 	if(!xmpp_stanza_get_child_by_name(stanza, "body")) return 1;
 	if(xmpp_stanza_get_type(stanza) !=NULL && !strcmp(xmpp_stanza_get_type(stanza), "error")) return 1;
-	
 	intext = xmpp_stanza_get_text(xmpp_stanza_get_child_by_name(stanza, "body"));
-	
 	printf("Incoming message from %s: %s\n", xmpp_stanza_get_from(stanza), intext);
-	
-	//reply = xmpp_stanza_reply(stanza);
-	//if (xmpp_stanza_get_type(reply) == NULL)
-	//    xmpp_stanza_set_type(reply, "chat");
-
-	//body = xmpp_stanza_new(ctx);
-	//xmpp_stanza_set_name(body, "body");
-	
-	//replytext = (char *) malloc(strlen(" to you too!") + strlen(intext) + 1);
-	//strcpy(replytext, intext);
-	//strcat(replytext, " to you too!");
 	xmpp_free(ctx, intext);
-	
-	//text = xmpp_stanza_new(ctx);
-	//xmpp_stanza_set_text(text, replytext);
-	//xmpp_stanza_add_child(body, text);
-	//xmpp_stanza_add_child(reply, body);
-	//xmpp_stanza_release(body);
-	//xmpp_stanza_release(text);
-	
-	//xmpp_send(conn, reply);
-	//xmpp_stanza_release(reply);
-	//free(replytext);
 	return 1;
 }
 
 
-void send_message(xmpp_conn_t *const conn, const char* const str, char *jid) {
-	//msg_queue_t* q;
-	//const char* jid;
-
+void send_message(xmpp_conn_t *const conn, const char* const str, char *jid)
+{
 	xmpp_stanza_t *msg, *body, *text;
-	//if (!(q = msg_active_queue_get())) {
-	//	io_error("No recipient selected.");
-	//	return;
-	//}
 	if (!conn) {
 		printf("no conecction");
 		return;
 	}
-
-	//jid = msg_queue_jid(q);
-
 	msg = xmpp_stanza_new(ctx);
 	xmpp_stanza_set_name(msg, "message");
 	xmpp_stanza_set_type(msg, "chat");
@@ -129,7 +102,6 @@ void send_message(xmpp_conn_t *const conn, const char* const str, char *jid) {
 
 	body = xmpp_stanza_new(ctx);
 	xmpp_stanza_set_name(body, "body");
-
 
 	text = xmpp_stanza_new(ctx);
 	xmpp_stanza_set_text(text, str);
@@ -173,31 +145,34 @@ void *hilo(void *args)
     xmpp_run(ctx);
 }
 
+/*Envia mensaje a todos los usuarios en la arreglo clientes*/
+void send_all_message(char *alarm, xmpp_conn_t *conn){
+	int i;
+	for (i = 0; i < NO_CLIENTES; i++){
+		send_message(conn, alarm, clientes[i]);
+	}
+}
+
 int main(int argc, char **argv)
 {
-    //xmpp_ctx_t *ctx;
-    xmpp_conn_t *conn;
-    xmpp_log_t *log;
-    char *jid, *pass;
-    /* take a jid and password on the command line */
-    if (argc != 3) {
-	fprintf(stderr, "Usage: bot <jid> <pass>\n\n");
-	return 1;
-    }
-    
-    jid = argv[1];
-    pass = argv[2];
-
-    /* init library */
-    xmpp_initialize();
-
-    /* create a context */
-    log = xmpp_get_default_logger(XMPP_LEVEL_DEBUG); /* pass NULL instead to silence output */
-    ctx = xmpp_ctx_new(NULL, log);
-
-    /* create a connection */
-    conn = xmpp_conn_new(ctx);
-
+	xmpp_conn_t *conn;
+	xmpp_log_t *log;
+	char *jid, *pass;
+/* take a jid and password on the command line */
+	if (argc != 3) {
+		fprintf(stderr, "Usage: bot <jid> <pass>\n\n");
+		return 1;
+    	}
+	jid = argv[1];
+	pass = argv[2];
+/*init library */
+	xmpp_initialize();
+/* create a context */
+	log = xmpp_get_default_logger(XMPP_LEVEL_DEBUG); 
+/* pass NULL instead to silence output */
+	ctx = xmpp_ctx_new(NULL, log);
+/* create a connection */
+	conn = xmpp_conn_new(ctx);
     /*
      * also you can disable TLS support or force legacy SSL
      * connection without STARTTLS
@@ -205,39 +180,28 @@ int main(int argc, char **argv)
      * see xmpp_conn_set_flags() or examples/basic.c
      */
 
-    /* setup authentication information */
-    xmpp_conn_set_jid(conn, jid);
-    xmpp_conn_set_pass(conn, pass);
+/* setup authentication information */
+	xmpp_conn_set_jid(conn, jid);
+	xmpp_conn_set_pass(conn, pass);
 
-    /* initiate connection */
-    xmpp_connect_client(conn, NULL, 0, conn_handler, ctx);
-
-    /* enter the event loop - 
-       our connect handler will trigger an exit */
-    //xmpp_run(ctx);
-    pthread_t h1;
-    pthread_create(&h1, NULL, hilo, NULL);
-    wiringPiSetup();
-    pinMode(0, INPUT);
-    char mystring[512];
-    while (1){
-        if (digitalRead(0) != 0){
-            mystring = "activado";
-            send_message(conn, mystring, "cliente01@suchat.org");
-            delay(500);
-        }
-        //printf("%s\n", mystring);
-        //digitalWrite (0,  LOW) ; delay (500) ;
-        //printf("entry:> ");
-        //scanf("%s", mystring);
-    }
-
-    /* release our connection and context */
-    xmpp_conn_release(conn);
-    xmpp_ctx_free(ctx);
-
-    /* final shutdown of the library */
-    xmpp_shutdown();
-
-    return 0;
+/* initiate connection */
+	xmpp_connect_client(conn, NULL, 0, conn_handler, ctx);
+/* enter the event loop - 
+   our connect handler will trigger an exit */
+    	pthread_t h1;
+    	pthread_create(&h1, NULL, hilo, NULL);
+	char alarms[15] = "";
+	while (1){
+		monitoring_alarm(alarms);
+		if (strlen(alarms) < 0){
+			printf("alarma activada...\n");
+			send_all_message(alarms, conn);
+		}
+	}
+/* release our connection and context */
+	xmpp_conn_release(conn);
+	xmpp_ctx_free(ctx);
+/* final shutdown of the library */
+	xmpp_shutdown();
+	return 0;
 }
